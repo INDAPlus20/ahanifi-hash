@@ -9,6 +9,9 @@ fn main() {
 
     // println!("Hello, world!");
 
+
+    // for finding keys that collide for testing
+
     // let start_key=1;
     // let mut hasher=DJHasher::new();
     // start_key.hash(&mut hasher);
@@ -34,6 +37,7 @@ fn main() {
     // }
 
     let mut hashmap=AmazingHashMap::<usize,usize>::new();
+    // all these keys have colliding hashes
     hashmap.insert(1, 23);
     hashmap.insert(9, 231231);
     hashmap.insert(17, 23);
@@ -42,6 +46,31 @@ fn main() {
     println!("{:?}",hashmap.table);
     println!("{:?}",hashmap.entry_index)
     
+}
+
+struct SDBMHasher{
+    hash:u64
+}
+
+impl SDBMHasher{
+    fn new() -> SDBMHasher{
+        SDBMHasher{
+            hash:0
+        }
+    }
+}
+
+impl Hasher for SDBMHasher{
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.hash = (self.hash << 5)
+                .wrapping_add(self.hash)
+                .wrapping_add(b as u64);
+        }
+    }
+    fn finish(&self) -> u64 {
+        self.hash
+    }
 }
 
 struct DJHasher {
@@ -187,7 +216,35 @@ where
         let hash = self.hash(&key);
     }
 
-    fn _lookup(&self, key: &K, hash: u64) ->Option<usize>{
+    fn lookup(&self, key: &K) ->Option<&Entry<K,V>>{
+        let hash=self.hash(key);
+        let mut displacement:u64=0;
+        let mut counter:u64=0;
+
+
+        loop{
+            match self.entry_index[((hash +counter)& self.mask) as usize]{
+                Some(entry_index) if entry_index.hash==hash => {
+                    match  &self.table[entry_index.index]{
+                        Some(entry)=>{
+                            if entry.key==*key{
+                                return Some(entry);
+                            }
+                        }
+                        None=> return None,
+                        _=>{},
+                    }
+                },
+                None=>{
+                    return None;
+                },
+                _=>{},
+            }
+
+            counter+=1;
+            displacement+=1;
+        }
+
         None
     }
 
@@ -252,6 +309,17 @@ mod tests {
         let returned_val=hashmap.table[hashmap.entry_index[hash as usize].unwrap().index].unwrap().value;
         assert_eq!(2021,returned_val);
 
+    }
+
+
+    #[test]
+    fn test_lookup(){
+        let mut hashmap=AmazingHashMap::<usize, usize>::new();
+        hashmap.insert(321, 4124);
+
+        assert_eq!(4124,hashmap.lookup(&321).unwrap().value);
+        assert!(hashmap.lookup(&31231).is_none())
+        
     }
 
 
