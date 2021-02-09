@@ -1,14 +1,20 @@
 use core::panic;
-use std::{hash::{self, Hash, Hasher}, ops::Index, usize};
-use serde::{Deserialize,Serialize};
+use hashmap::hashers;
+use serde::{Deserialize, Serialize};
 use serde_json;
+use std::{
+    fmt::Debug,
+    hash::{self, Hash, Hasher},
+    ops::Index,
+    u64, usize,
+};
+
 fn main() {
     // let entry=Entry::new(1231,"hej");
     // let serialized = serde_json::to_string(&entry).unwrap();
     // println!("serialized = {}", serialized);
 
     // println!("Hello, world!");
-
 
     // for finding keys that collide for testing
 
@@ -26,85 +32,32 @@ fn main() {
     //     if working_hash== start_hash{
     //         println!("{}",working_key);
     //         counter+=1;
-      
+
     //     }
     //     if counter > 10{
     //         break;
     //     }
     //     working_key+=1;
-        
 
-    // }
+    //}
 
-    let mut hashmap=AmazingHashMap::<usize,usize>::new();
+    let mut hashmap = AmazingHashMap::<usize, usize>::new();
     // all these keys have colliding hashes
     hashmap.insert(1, 23);
     hashmap.insert(9, 231231);
     hashmap.insert(17, 23);
     hashmap.insert(1, 423);
 
-    println!("{:?}",hashmap.table);
-    println!("{:?}",hashmap.entry_index)
-    
+    hashmap.insert(3, 123);
+    println!("{:?}", hashmap.table);
+    println!("{:?}", hashmap.entry_index);
+    println!("------------------------------------------");
+
+    hashmap.delete(1);
+
+    println!("{:?}", hashmap.table);
+    println!("{:?}", hashmap.entry_index);
 }
-
-struct SDBMHasher{
-    hash:u64
-}
-
-impl SDBMHasher{
-    fn new() -> SDBMHasher{
-        SDBMHasher{
-            hash:0
-        }
-    }
-}
-
-impl Hasher for SDBMHasher{
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.hash = (self.hash << 5)
-                .wrapping_add(self.hash)
-                .wrapping_add(b as u64);
-        }
-    }
-    fn finish(&self) -> u64 {
-        self.hash
-    }
-}
-
-struct DJHasher {
-    hash: u64,
-}
-
-impl DJHasher {
-    fn new() -> DJHasher {
-        DJHasher {
-            hash: 5381u64, // 5381 is supposedly a very good number
-        }
-    }
-}
-
-impl Hasher for DJHasher {
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.hash = (self.hash << 5)
-                .wrapping_add(self.hash)
-                .wrapping_add(b as u64);
-        }
-    }
-    fn finish(&self) -> u64 {
-        self.hash
-    }
-}
-/*
-Use of hasher
-
-let mut hashe r= DJHasher::new()
-key.hash(&mut hasher)
-let hash = hasher.finish()
-
- */
 
 #[derive(Clone, Copy, Debug)]
 struct EntryIndex {
@@ -117,7 +70,7 @@ impl EntryIndex {
     }
 }
 
-#[derive(Clone, Copy, Debug,Serialize,Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct Entry<K, V> {
     key: K,
     value: V,
@@ -135,6 +88,7 @@ This leads to less memory usage because of the empty buckets that exist in the o
 
 Using linear probing and open addressing. Robinhood style.
 */
+#[derive(Debug)]
 struct AmazingHashMap<K, V> {
     capacity: usize,
     table: Vec<Option<Entry<K, V>>>,
@@ -145,7 +99,8 @@ struct AmazingHashMap<K, V> {
 
 impl<K, V> AmazingHashMap<K, V>
 where
-    K: Hash + Eq,
+    K: Hash + Eq + Debug,
+    V: Debug,
 {
     fn new() -> AmazingHashMap<K, V> {
         let capacity = 8usize;
@@ -164,92 +119,200 @@ where
         }
     }
 
-
-    fn insert(&mut self, key:K, value: V) {
+    fn insert(&mut self, key: K, value: V) {
         let hash = self.hash(&key);
-        let mut displacement:usize=0;
-        let mut counter:usize=0;
-        let mut index_to_replace=self.current_index;
+        let mut displacement: usize = 0;
+        let mut counter: usize = 0;
+        let mut index_to_replace = self.current_index;
 
-        loop{
-            match self.entry_index[((hash +counter as u64) & self.mask) as usize] {
+        loop {
+            match self.entry_index[((hash + counter as u64) & self.mask) as usize] {
                 Some(entry_index) if entry_index.hash == hash => {
                     println!("Same Hash");
                     match &mut self.table[entry_index.index] {
-                        Some(ref mut entry)=>{ 
-                            if entry.key==key{
-                                entry.value=value;
+                        Some(ref mut entry) => {
+                            if entry.key == key {
+                                entry.value = value;
                                 return;
                             }
-                        },
-                        None=>{},
+                        }
+                        None => {}
                     }
-                        
-                },
-                Some(ref mut entry_index)=>{
+                }
+                Some(ref mut entry_index) => {
                     println!("Not same hash");
-                    let entry_displacement=(hash as usize+counter) - entry_index.hash as usize;
+                    let entry_displacement: usize = ((hash + counter as u64) as isize
+                        - entry_index.hash as isize)
+                        .abs() as usize;
                     if displacement > entry_displacement {
-                        displacement=entry_displacement;
-                        let temp=entry_index.index;
-                        entry_index.index=index_to_replace;
-                        index_to_replace=temp;
+                        displacement = entry_displacement;
+                        let temp = entry_index.index;
+                        entry_index.index = index_to_replace;
+                        index_to_replace = temp;
                     }
-
-                },
+                }
 
                 None => {
-                    self.entry_index[((hash+counter as u64)&self.mask) as usize] = Some(EntryIndex::new(index_to_replace, hash));
+                    self.entry_index[((hash + counter as u64) & self.mask) as usize] =
+                        Some(EntryIndex::new(index_to_replace, hash));
                     break;
-                },
+                }
             }
-            displacement+=1;
-            counter+=1;
+            displacement += 1;
+            counter += 1;
         }
-        
+
         self.current_index += 1;
         self.table.push(Some(Entry::new(key, value)));
-        
     }
 
-    fn delete(&mut self, key: K) {
+    fn delete(&mut self, key: K) -> Result<(), &str> {
         let hash = self.hash(&key);
+        let mut counter = 0;
+        let mut displacement = 0;
+        let entry_to_delete;
+        let pos_to_delete;
+        {
+            loop {
+                match self.entry_index[((hash + counter) & self.mask) as usize] {
+                    Some(entry_index) if entry_index.hash == hash => {
+                        match &self.table[entry_index.index] {
+                            Some(entry) => {
+                                if entry.key == key {
+                                    entry_to_delete = entry_index.index;
+                                    pos_to_delete = ((hash + counter) & self.mask) as usize;
+                                    break;
+                                }
+                            }
+                            None => return Err("dont know"),
+                            _ => {}
+                        }
+                    }
+                    Some(entry_index) => {
+                        let entry_displacement = ((hash + counter as u64) as isize
+                            - entry_index.hash as isize)
+                            .abs() as u64;
+                        if displacement > entry_displacement {
+                            return Err("No entry with that key");
+                        }
+                    }
+                    None => {
+                        return Err("No entry with that key");
+                    }
+                    _ => {}
+                }
+
+                counter += 1;
+                displacement += 1;
+            }
+        }
+
+        if self.current_index > 1 {
+            {
+                self.current_index -= 1;
+                self.entry_index[pos_to_delete] = None;
+                let new_key = &self.table.last().unwrap().as_ref().unwrap().key;
+                let position = self._lookup(&new_key).unwrap();
+
+                // println!("{}", pos_to_delete);
+                // println!("new_key {:?}", new_key);
+                // println!("position {}", position);
+
+                self.entry_index[position].as_mut().unwrap().index = entry_to_delete;
+            }
+
+            self.table.swap_remove(entry_to_delete);
+
+        } else {
+            self.table.pop();
+            self.entry_index[pos_to_delete] = None;
+            self.current_index -= 1;
+        }
+
+        Ok(())
     }
 
-    fn lookup(&self, key: &K) ->Option<&Entry<K,V>>{
-        let hash=self.hash(key);
-        let mut displacement:u64=0;
-        let mut counter:u64=0;
+    fn lookup(&self, key: &K) -> Option<&Entry<K, V>> {
+        let hash = self.hash(key);
+        let mut displacement: u64 = 0;
+        let mut counter: u64 = 0;
 
-
-        loop{
-            match self.entry_index[((hash +counter)& self.mask) as usize]{
-                Some(entry_index) if entry_index.hash==hash => {
-                    match  &self.table[entry_index.index]{
-                        Some(entry)=>{
-                            if entry.key==*key{
+        loop {
+            match self.entry_index[((hash + counter) & self.mask) as usize] {
+                Some(entry_index) if entry_index.hash == hash => {
+                    match &self.table[entry_index.index] {
+                        Some(entry) => {
+                            if entry.key == *key {
                                 return Some(entry);
                             }
                         }
-                        None=> return None,
-                        _=>{},
+                        None => return None,
+                        _ => {}
                     }
-                },
-                None=>{
+                }
+                Some(entry_index) => {
+                    let entry_displacement =
+                        ((hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
+                    if displacement > entry_displacement {
+                        return None;
+                    }
+                }
+                None => {
                     return None;
-                },
-                _=>{},
+                }
+                _ => {}
             }
 
-            counter+=1;
-            displacement+=1;
+            counter += 1;
+            displacement += 1;
+        }
+
+        None
+    }
+
+    fn _lookup(&self, key: &K) -> Option<usize> {
+        let hash = self.hash(key);
+        let mut displacement: u64 = 0;
+        let mut counter: u64 = 0;
+
+        loop {
+            let position = ((hash + counter) & self.mask) as usize;
+            match self.entry_index[position] {
+                Some(entry_index) if entry_index.hash == hash => {
+                    match &self.table[entry_index.index] {
+                        Some(entry) => {
+                            if entry.key == *key {
+                                return Some(position);
+                            }
+                        }
+                        None => return None,
+                        _ => {}
+                    }
+                }
+
+                Some(entry_index) => {
+                    let entry_displacement =
+                        ((hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
+                    if displacement > entry_displacement {
+                        return None;
+                    }
+                }
+
+                None => {
+                    return None;
+                }
+                _ => {}
+            }
+
+            counter += 1;
+            displacement += 1;
         }
 
         None
     }
 
     fn hash(&self, key: &K) -> u64 {
-        let mut hasher = DJHasher::new();
+        let mut hasher = hashers::DJHasher::new();
         key.hash(&mut hasher);
         hasher.finish() & self.mask // so we get the hash within the capacity
     }
@@ -259,7 +322,8 @@ where
 mod tests {
     use std::hash::{Hash, Hasher};
 
-    use crate::{AmazingHashMap, DJHasher};
+    use crate::AmazingHashMap;
+    use hashmap::hashers;
 
     #[test]
     fn basic_no_collision_insert() {
@@ -267,7 +331,7 @@ mod tests {
         let key = 1usize;
         let value = 1337usize;
 
-        let mut hasher = DJHasher::new();
+        let mut hasher = hashers::DJHasher::new();
         key.hash(&mut hasher);
         let hash = hasher.finish() & hashmap.mask;
 
@@ -281,7 +345,7 @@ mod tests {
         let key = 42usize;
         let value = 1231;
 
-        let mut hasher = DJHasher::new();
+        let mut hasher = hashers::DJHasher::new();
         key.hash(&mut hasher);
         let hash = hasher.finish() & hashmap.mask;
 
@@ -294,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_value_no_collision(){
+    fn test_update_value_no_collision() {
         let mut hashmap = AmazingHashMap::<usize, usize>::new();
         let key = 1usize;
 
@@ -302,25 +366,22 @@ mod tests {
 
         hashmap.insert(key, 2021);
 
-        let mut hasher = DJHasher::new();
+        let mut hasher = hashers::DJHasher::new();
         key.hash(&mut hasher);
         let hash = hasher.finish() & hashmap.mask;
 
-        let returned_val=hashmap.table[hashmap.entry_index[hash as usize].unwrap().index].unwrap().value;
-        assert_eq!(2021,returned_val);
-
+        let returned_val = hashmap.table[hashmap.entry_index[hash as usize].unwrap().index]
+            .unwrap()
+            .value;
+        assert_eq!(2021, returned_val);
     }
-
 
     #[test]
-    fn test_lookup(){
-        let mut hashmap=AmazingHashMap::<usize, usize>::new();
+    fn test_lookup() {
+        let mut hashmap = AmazingHashMap::<usize, usize>::new();
         hashmap.insert(321, 4124);
 
-        assert_eq!(4124,hashmap.lookup(&321).unwrap().value);
+        assert_eq!(4124, hashmap.lookup(&321).unwrap().value);
         assert!(hashmap.lookup(&31231).is_none())
-        
     }
-
-
 }
