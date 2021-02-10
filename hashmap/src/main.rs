@@ -2,12 +2,7 @@ use core::panic;
 use hashmap::hashers;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::{
-    fmt::Debug,
-    hash::{self, Hash, Hasher},
-    ops::Index,
-    u64, usize,
-};
+use std::{convert::TryInto, fmt::Debug, hash::{self, Hash, Hasher}, ops::Index, u64, usize};
 
 fn main() {
     // let entry=Entry::new(1231,"hej");
@@ -42,21 +37,31 @@ fn main() {
     //}
 
     let mut hashmap = AmazingHashMap::<usize, usize>::new();
+
+    for i in 0..14{
+        hashmap.insert(i, i*10);
+    }
+    //println!("{:?}",hashmap.table);
+    println!("{:?}",hashmap.entry_index);
     // all these keys have colliding hashes
-    hashmap.insert(1, 23);
-    hashmap.insert(9, 231231);
-    hashmap.insert(17, 23);
-    hashmap.insert(1, 423);
+    // hashmap.insert(1, 23);
+    // hashmap.insert(9, 231231);
+    // hashmap.insert(17, 23);
+    // hashmap.insert(21, 423);
+    // hashmap.insert(32, 23);
+    // hashmap.insert(18, 23);
+    // hashmap.insert(42, 23);
 
-    hashmap.insert(3, 123);
-    println!("{:?}", hashmap.table);
-    println!("{:?}", hashmap.entry_index);
-    println!("------------------------------------------");
 
-    hashmap.delete(1);
+    // hashmap.insert(3, 123);
+    // println!("{:?}", hashmap.table);
+    // println!("{:?}", hashmap.entry_index);
+    // println!("------------------------------------------");
 
-    println!("{:?}", hashmap.table);
-    println!("{:?}", hashmap.entry_index);
+    // hashmap.delete(1);
+
+    // println!("{:?}", hashmap.table);
+    // println!("{:?}", hashmap.entry_index);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -125,8 +130,10 @@ where
         let mut counter: usize = 0;
         let mut index_to_replace = self.current_index;
 
+        let mod_hash=hash&self.mask;
+
         loop {
-            match self.entry_index[((hash + counter as u64) & self.mask) as usize] {
+            match self.entry_index[((mod_hash + counter as u64) & self.mask) as usize] {
                 Some(entry_index) if entry_index.hash == hash => {
                     println!("Same Hash");
                     match &mut self.table[entry_index.index] {
@@ -153,7 +160,7 @@ where
                 }
 
                 None => {
-                    self.entry_index[((hash + counter as u64) & self.mask) as usize] =
+                    self.entry_index[((mod_hash + counter as u64) & self.mask) as usize] =
                         Some(EntryIndex::new(index_to_replace, hash));
                     break;
                 }
@@ -164,6 +171,10 @@ where
 
         self.current_index += 1;
         self.table.push(Some(Entry::new(key, value)));
+
+        if 3*self.current_index>= self.capacity*2{
+            self.resize();
+        }
     }
 
     fn delete(&mut self, key: K) -> Result<(), &str> {
@@ -236,14 +247,16 @@ where
         let hash = self.hash(key);
         let mut displacement: u64 = 0;
         let mut counter: u64 = 0;
+        let mod_hash=hash & self.mask;
 
         loop {
-            match self.entry_index[((hash + counter) & self.mask) as usize] {
+            match self.entry_index[((mod_hash + counter) & self.mask) as usize] {
                 Some(entry_index) if entry_index.hash == hash => {
                     match &self.table[entry_index.index] {
                         Some(entry) => {
                             if entry.key == *key {
                                 return Some(entry);
+                                
                             }
                         }
                         None => return None,
@@ -252,7 +265,7 @@ where
                 }
                 Some(entry_index) => {
                     let entry_displacement =
-                        ((hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
+                        ((mod_hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
                     if displacement > entry_displacement {
                         return None;
                     }
@@ -274,6 +287,7 @@ where
         let hash = self.hash(key);
         let mut displacement: u64 = 0;
         let mut counter: u64 = 0;
+        let mod_hash=hash &self.mask;
 
         loop {
             let position = ((hash + counter) & self.mask) as usize;
@@ -311,12 +325,36 @@ where
         None
     }
 
+    fn resize(&mut self){
+        
+        let new_capacity:u64=(self.capacity << 1).try_into().unwrap(); // double the size of the table
+        let mut new_entry_index : Vec<Option<EntryIndex>> = vec![None;new_capacity as usize];
+
+        println!("resizing to {}",new_capacity);
+
+        for option_index in &mut self.entry_index{
+            match option_index {
+                Some(entry_index)=>{
+                    let new_hash = entry_index.hash & (new_capacity-1);
+                    std::mem::replace(&mut new_entry_index[new_hash as usize], Some(*entry_index));
+                },
+                None =>{},
+            }
+        }
+
+        self.entry_index=new_entry_index;
+        self.capacity=new_capacity as usize;
+        self.mask=(self.capacity-1) as u64;
+
+    }
+
     fn hash(&self, key: &K) -> u64 {
         let mut hasher = hashers::DJHasher::new();
         key.hash(&mut hasher);
-        hasher.finish() & self.mask // so we get the hash within the capacity
+        hasher.finish() //& self.mask // so we get the hash within the capacity
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -383,5 +421,16 @@ mod tests {
 
         assert_eq!(4124, hashmap.lookup(&321).unwrap().value);
         assert!(hashmap.lookup(&31231).is_none())
+    }
+    #[test]
+    fn test_resize(){
+        let mut hashmap=AmazingHashMap::<usize,usize>::new();
+        for i in 0..14{
+            hashmap.insert(i, i*10);
+        }
+        for i in 0..14{
+            println!("{}",i);
+            assert!(hashmap.lookup(&i).unwrap().value==i*10)
+        }
     }
 }
