@@ -124,9 +124,10 @@ where
         let mut displacement = 0;
         let entry_to_delete;
         let pos_to_delete;
+        let mod_hash=hash&self.mask;
         {
             loop {
-                match self.entry_index[((hash + counter) & self.mask) as usize] {
+                match self.entry_index[((mod_hash + counter) & self.mask) as usize] {
                     Some(entry_index) if entry_index.hash == hash => {
                         match &self.table[entry_index.index] {
                             Some(entry) => {
@@ -162,8 +163,17 @@ where
         if self.current_index > 1 {
             {
                 self.current_index -= 1;
-                self.entry_index[pos_to_delete] = None;
+                let index=self.entry_index[pos_to_delete].unwrap().index;
+                self.entry_index[pos_to_delete]=None;
+
+                if index==self.current_index{ // if the entry we are deleting is the last element of the table.
+                    self.table.pop();
+                    return Ok(());
+                }
+
                 let new_key = &self.table.last().unwrap().as_ref().unwrap().key;
+                println!("new_k {:?}",new_key);
+                println!("entry_index{:?}",self.entry_index);
                 let position = self._lookup(&new_key).unwrap();
 
                 // println!("{}", pos_to_delete);
@@ -231,8 +241,10 @@ where
         let mod_hash=hash &self.mask;
 
         loop {
-            let position = ((hash + counter) & self.mask) as usize;
+            let position = ((mod_hash + counter) & self.mask) as usize;
+            println!("{}",position);
             match self.entry_index[position] {
+                
                 Some(entry_index) if entry_index.hash == hash => {
                     match &self.table[entry_index.index] {
                         Some(entry) => {
@@ -241,11 +253,11 @@ where
                             }
                         }
                         None => return None,
-                        _ => {}
                     }
                 }
 
                 Some(entry_index) => {
+                    println!("not same hash");
                     let entry_displacement =
                         ((hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
                     if displacement > entry_displacement {
@@ -254,6 +266,7 @@ where
                 }
 
                 None => {
+                    println!("none");
                     return None;
                 }
                 _ => {}
@@ -372,6 +385,17 @@ mod tests {
         for i in 0..14{
             println!("{}",i);
             assert!(hashmap.lookup(&i).unwrap().value==i*10)
+        }
+    }
+
+    #[test]
+    fn test_delete(){
+        let mut hashmap=AmazingHashMap::<usize,usize>::new();
+        for i in 0..10{
+            hashmap.insert(i,i*10);
+        }
+        for i in 0..10{
+            hashmap.delete(i);
         }
     }
 }
