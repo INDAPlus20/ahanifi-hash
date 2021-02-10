@@ -23,19 +23,19 @@ impl Hasher for SDBMHasher {
     }
 }
 
-pub struct DJHasher {
+pub struct AHHasher {
     hash: u64,
 }
 
-impl DJHasher {
-    pub fn new() -> DJHasher {
-        DJHasher {
-            hash: 5381u64, // 5381 is supposedly a very good number
+impl AHHasher {
+    pub fn new() -> AHHasher {
+        AHHasher {
+            hash: 5381u64, // VERY NICE PRIME
         }
     }
 }
 
-impl Hasher for DJHasher {
+impl Hasher for AHHasher {
     fn write(&mut self, bytes: &[u8]) {
         for &b in bytes {
             self.hash = (self.hash << 5)
@@ -50,7 +50,7 @@ impl Hasher for DJHasher {
 /*
 Use of hasher
 
-let mut hashe r= DJHasher::new()
+let mut hashe r= AHHasher::new()
 key.hash(&mut hasher)
 let hash = hasher.finish()
 
