@@ -1,6 +1,6 @@
 
 use database::database::JaySonDB;
-use std::{env, io::BufRead, usize};
+use std::{env, io::BufRead};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,13 +21,12 @@ fn main() {
             Ok(read_line) => {
                 parse(&mut db, read_line);
             }
-            Err(e) => println!("Couldn't read line. Quitting ..."),
+            Err(_) => println!("Couldn't read line. Quitting ..."),
         }
     }
 }
 
 fn parse(db: &mut JaySonDB<String, String>, line: String) {
-    let test_line = line.clone();
     let split_line: Vec<&str> = line.split_whitespace().collect();
     match split_line[0] {
         "insert" => {

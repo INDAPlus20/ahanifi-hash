@@ -1,4 +1,4 @@
-use hashmap::robin::AmazingHashMap;
+use hashmap::hashmap::AmazingHashMap;
 fn main() {
     // let entry=Entry::new(1231,"hej");
     // let serialized = serde_json::to_string(&entry).unwrap();
