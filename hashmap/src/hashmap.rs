@@ -262,7 +262,7 @@ where
             displacement += 1;
         }
     }
-
+    #[allow(unused_must_use)]
     fn resize(&mut self) {
         let new_capacity: u64 = (self.capacity << 1).try_into().unwrap(); // double the size of the table
         let mut new_entry_index: Vec<Option<EntryIndex>> = vec![None; new_capacity as usize];
@@ -271,8 +271,8 @@ where
             match option_index {
                 Some(entry_index) => {
                     let new_hash = entry_index.hash & (new_capacity - 1);
-                    std::mem::replace(&mut new_entry_index[new_hash as usize], Some(*entry_index))
-                        .unwrap();
+                    std::mem::replace(&mut new_entry_index[new_hash as usize], Some(*entry_index));
+                        
                 }
                 None => {}
             }
