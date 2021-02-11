@@ -33,8 +33,8 @@ fn main() {
 
     let mut hashmap = AmazingHashMap::<usize, usize>::new();
 
-    for i in 0..14{
-        hashmap.insert(i, i*10);
+    for i in 0..14 {
+        hashmap.insert(i, i * 10);
     }
     //println!("{:?}",hashmap.table);
     //println!("{:?}",hashmap.entry_index);
@@ -55,5 +55,3 @@ fn main() {
     // println!("{:?}", hashmap.table);
     // println!("{:?}", hashmap.entry_index);
 }
-
-

@@ -1,9 +1,10 @@
-use core::panic;
 use super::hashers;
 use serde::{Deserialize, Serialize};
-use serde_json;
-use std::{convert::TryInto, fmt::Debug, hash::{self, Hash, Hasher}, ops::Index, u64, usize};
-
+use std::{
+    convert::TryInto,
+    fmt::Debug,
+    hash::{Hash, Hasher},
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct EntryIndex {
@@ -18,11 +19,11 @@ impl EntryIndex {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Entry<K, V> {
-    key: K,
-    value: V,
+    pub key: K,
+    pub value: V,
 }
 impl<K, V> Entry<K, V> {
-    fn new(key: K, value: V) -> Entry<K, V> {
+    pub fn new(key: K, value: V) -> Entry<K, V> {
         Entry { key, value }
     }
 }
@@ -45,8 +46,7 @@ pub struct AmazingHashMap<K, V> {
 
 impl<K, V> AmazingHashMap<K, V>
 where
-    K: Hash + Eq + Debug,
-    V: Debug,
+    K: Hash + Eq,
 {
     pub fn new() -> AmazingHashMap<K, V> {
         let capacity = 8usize;
@@ -71,12 +71,11 @@ where
         let mut counter: usize = 0;
         let mut index_to_replace = self.current_index;
 
-        let mod_hash=hash&self.mask;
+        let mod_hash = hash & self.mask;
 
         loop {
             match self.entry_index[((mod_hash + counter as u64) & self.mask) as usize] {
                 Some(entry_index) if entry_index.hash == hash => {
-                    println!("Same Hash");
                     match &mut self.table[entry_index.index] {
                         Some(ref mut entry) => {
                             if entry.key == key {
@@ -88,7 +87,6 @@ where
                     }
                 }
                 Some(ref mut entry_index) => {
-                    println!("Not same hash");
                     let entry_displacement: usize = ((hash + counter as u64) as isize
                         - entry_index.hash as isize)
                         .abs() as usize;
@@ -113,7 +111,7 @@ where
         self.current_index += 1;
         self.table.push(Some(Entry::new(key, value)));
 
-        if 3*self.current_index>= self.capacity*2{
+        if 3 * self.current_index >= self.capacity * 2 {
             self.resize();
         }
     }
@@ -124,7 +122,7 @@ where
         let mut displacement = 0;
         let entry_to_delete;
         let pos_to_delete;
-        let mod_hash=hash&self.mask;
+        let mod_hash = hash & self.mask;
         {
             loop {
                 match self.entry_index[((mod_hash + counter) & self.mask) as usize] {
@@ -138,7 +136,6 @@ where
                                 }
                             }
                             None => return Err("dont know"),
-                            _ => {}
                         }
                     }
                     Some(entry_index) => {
@@ -152,7 +149,6 @@ where
                     None => {
                         return Err("No entry with that key");
                     }
-                    _ => {}
                 }
 
                 counter += 1;
@@ -163,17 +159,16 @@ where
         if self.current_index > 1 {
             {
                 self.current_index -= 1;
-                let index=self.entry_index[pos_to_delete].unwrap().index;
-                self.entry_index[pos_to_delete]=None;
+                let index = self.entry_index[pos_to_delete].unwrap().index;
+                self.entry_index[pos_to_delete] = None;
 
-                if index==self.current_index{ // if the entry we are deleting is the last element of the table.
+                if index == self.current_index {
+                    // if the entry we are deleting is the last element of the table.
                     self.table.pop();
                     return Ok(());
                 }
 
                 let new_key = &self.table.last().unwrap().as_ref().unwrap().key;
-                println!("new_k {:?}",new_key);
-                println!("entry_index{:?}",self.entry_index);
                 let position = self._lookup(&new_key).unwrap();
 
                 // println!("{}", pos_to_delete);
@@ -184,7 +179,6 @@ where
             }
 
             self.table.swap_remove(entry_to_delete);
-
         } else {
             self.table.pop();
             self.entry_index[pos_to_delete] = None;
@@ -198,7 +192,7 @@ where
         let hash = self.hash(key);
         let mut displacement: u64 = 0;
         let mut counter: u64 = 0;
-        let mod_hash=hash & self.mask;
+        let mod_hash = hash & self.mask;
 
         loop {
             match self.entry_index[((mod_hash + counter) & self.mask) as usize] {
@@ -207,16 +201,15 @@ where
                         Some(entry) => {
                             if entry.key == *key {
                                 return Some(entry);
-                                
                             }
                         }
                         None => return None,
-                        _ => {}
                     }
                 }
                 Some(entry_index) => {
-                    let entry_displacement =
-                        ((mod_hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
+                    let entry_displacement = ((mod_hash + counter as u64) as isize
+                        - entry_index.hash as isize)
+                        .abs() as u64;
                     if displacement > entry_displacement {
                         return None;
                     }
@@ -224,27 +217,22 @@ where
                 None => {
                     return None;
                 }
-                _ => {}
             }
 
             counter += 1;
             displacement += 1;
         }
-
-        None
     }
 
     fn _lookup(&self, key: &K) -> Option<usize> {
         let hash = self.hash(key);
         let mut displacement: u64 = 0;
         let mut counter: u64 = 0;
-        let mod_hash=hash &self.mask;
+        let mod_hash = hash & self.mask;
 
         loop {
             let position = ((mod_hash + counter) & self.mask) as usize;
-            println!("{}",position);
             match self.entry_index[position] {
-                
                 Some(entry_index) if entry_index.hash == hash => {
                     match &self.table[entry_index.index] {
                         Some(entry) => {
@@ -257,7 +245,6 @@ where
                 }
 
                 Some(entry_index) => {
-                    println!("not same hash");
                     let entry_displacement =
                         ((hash + counter as u64) as isize - entry_index.hash as isize).abs() as u64;
                     if displacement > entry_displacement {
@@ -269,37 +256,31 @@ where
                     println!("none");
                     return None;
                 }
-                _ => {}
             }
 
             counter += 1;
             displacement += 1;
         }
-
-        None
     }
 
-    fn resize(&mut self){
-        
-        let new_capacity:u64=(self.capacity << 1).try_into().unwrap(); // double the size of the table
-        let mut new_entry_index : Vec<Option<EntryIndex>> = vec![None;new_capacity as usize];
+    fn resize(&mut self) {
+        let new_capacity: u64 = (self.capacity << 1).try_into().unwrap(); // double the size of the table
+        let mut new_entry_index: Vec<Option<EntryIndex>> = vec![None; new_capacity as usize];
 
-        println!("resizing to {}",new_capacity);
-
-        for option_index in &mut self.entry_index{
+        for option_index in &mut self.entry_index {
             match option_index {
-                Some(entry_index)=>{
-                    let new_hash = entry_index.hash & (new_capacity-1);
-                    std::mem::replace(&mut new_entry_index[new_hash as usize], Some(*entry_index));
-                },
-                None =>{},
+                Some(entry_index) => {
+                    let new_hash = entry_index.hash & (new_capacity - 1);
+                    std::mem::replace(&mut new_entry_index[new_hash as usize], Some(*entry_index))
+                        .unwrap();
+                }
+                None => {}
             }
         }
 
-        self.entry_index=new_entry_index;
-        self.capacity=new_capacity as usize;
-        self.mask=(self.capacity-1) as u64;
-
+        self.entry_index = new_entry_index;
+        self.capacity = new_capacity as usize;
+        self.mask = (self.capacity - 1) as u64;
     }
 
     fn hash(&self, key: &K) -> u64 {
@@ -309,13 +290,12 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::hash::{Hash, Hasher};
 
-    use super::AmazingHashMap;
     use super::hashers;
+    use super::AmazingHashMap;
 
     #[test]
     fn basic_no_collision_insert() {
@@ -377,25 +357,25 @@ mod tests {
         assert!(hashmap.lookup(&31231).is_none())
     }
     #[test]
-    fn test_resize(){
-        let mut hashmap=AmazingHashMap::<usize,usize>::new();
-        for i in 0..14{
-            hashmap.insert(i, i*10);
+    fn test_resize() {
+        let mut hashmap = AmazingHashMap::<usize, usize>::new();
+        for i in 0..14 {
+            hashmap.insert(i, i * 10);
         }
-        for i in 0..14{
-            println!("{}",i);
-            assert!(hashmap.lookup(&i).unwrap().value==i*10)
+        for i in 0..14 {
+            println!("{}", i);
+            assert!(hashmap.lookup(&i).unwrap().value == i * 10)
         }
     }
 
     #[test]
-    fn test_delete(){
-        let mut hashmap=AmazingHashMap::<usize,usize>::new();
-        for i in 0..10{
-            hashmap.insert(i,i*10);
+    fn test_delete() {
+        let mut hashmap = AmazingHashMap::<usize, usize>::new();
+        for i in 0..10 {
+            hashmap.insert(i, i * 10);
         }
-        for i in 0..10{
-            hashmap.delete(i);
+        for i in 0..10 {
+            hashmap.delete(i).unwrap();
         }
     }
 }
