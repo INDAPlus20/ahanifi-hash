@@ -50,7 +50,11 @@ fn parse(db: &mut JaySonDB<String, String>, line: String) {
                 println!("lookup requires 1 parameter: Key");
                 return;
             }
-            db.lookup(split_line[1].to_string());
+            match db.lookup(split_line[1].to_string()){
+                Some(entry)=>println!("Key: {} | Value: {}",entry.key,entry.value),
+                None => println!("No entry with that key"),
+            }
+            
         }
         "list" => {
             let all_entries = db.list_all();
