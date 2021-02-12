@@ -1,7 +1,7 @@
 # ahanifi-hash
 JaySonDB
 
-Database built upon a hashmap that implements open addressing using robin hood hashing. The probing sequence is linear.
+Database built upon a hashmap that implements open addressing using robin hood hashing. The probing sequence is linear.No need for rehashing when resizing.
 
 To start the CLI for the database navigate to the database folder in the terminal and write ```cargo run``` to run with the default save file. To start the database with another file write ```cargo run filepath```.
 
